@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://dj5bx0t2wc3ri"]
+
+[ext_resource type="Script" uid="uid://dis1k7tnms8ad" path="res://scripts/golf_ball.gd" id="1_8kg14"]
+
+[node name="GolfBall" type="Node2D"]
+script = ExtResource("1_8kg14")
