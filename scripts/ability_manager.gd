@@ -2,23 +2,37 @@
 class_name AbilityManager
 extends Node
 
-signal ability_played(player_id: int, ability_id: String)
+signal ability_played(
+	player_id: int,
+	ability_id: String
+)
 
-# Maximum number of cards a player can hold.
 @export_range(1, 20, 1)
 var max_hand_size: int = 5
 
 @onready var turn_manager: TurnManager = $"../TurnManager"
 @onready var reaction_manager: ReactionManager = $"../ReactionManager"
+@onready var targeting_controller: TargetingController = $"../TargetingController"
 
-# Each player has their own hand of cards.
 var hands: Array = [[], []]
+
+# Track a card while the player chooses its target.
+var pending_ability: GolfAbility = null
+var pending_player: int = -1
 
 
 func _ready() -> void:
 	turn_manager.turn_started.connect(_on_turn_started)
-	_reset_test_hands()
 
+	targeting_controller.target_selected.connect(
+		_on_target_selected
+	)
+
+	targeting_controller.targeting_cancelled.connect(
+		_on_targeting_cancelled
+	)
+
+	_reset_test_hands()
 	print("[ABILITY] Test hands initialized")
 
 
@@ -27,8 +41,7 @@ func _make_ability(
 	display_name: String,
 	timing: GolfAbility.Timing,
 	price: int,
-	flight_allowed: bool = true,
-	post_allowed: bool = true
+	target: GolfAbility.TargetType
 ) -> GolfAbility:
 	var ability := GolfAbility.new()
 
@@ -36,8 +49,7 @@ func _make_ability(
 	ability.ability_name = display_name
 	ability.timing = timing
 	ability.purchase_price = price
-	ability.allow_in_flight = flight_allowed
-	ability.allow_post_shot = post_allowed
+	ability.target_type = target
 
 	return ability
 
@@ -52,7 +64,8 @@ func _reset_test_hands() -> void:
 				"freeze_green",
 				"Freeze Green",
 				GolfAbility.Timing.PRE_SHOT,
-				4
+				4,
+				GolfAbility.TargetType.COURSE_AREA
 			)
 		)
 
@@ -62,29 +75,22 @@ func _reset_test_hands() -> void:
 				"repair_club",
 				"Repair Club",
 				GolfAbility.Timing.POST_SHOT,
-				3
+				3,
+				GolfAbility.TargetType.NONE
 			)
 		)
 
-		_add_card(
-			player_index,
-			_make_ability(
-				"sudden_gust",
-				"Sudden Gust",
-				GolfAbility.Timing.INSTANT,
-				9
+		for i in range(2):
+			_add_card(
+				player_index,
+				_make_ability(
+					"sudden_gust",
+					"Sudden Gust",
+					GolfAbility.Timing.INSTANT,
+					9,
+					GolfAbility.TargetType.BALL
+				)
 			)
-		)
-
-		_add_card(
-			player_index,
-			_make_ability(
-				"sudden_gust",
-				"Sudden Gust",
-				GolfAbility.Timing.INSTANT,
-				9
-			)
-		)
 
 
 func _add_card(
@@ -92,11 +98,7 @@ func _add_card(
 	ability: GolfAbility
 ) -> bool:
 	if hands[player_index].size() >= max_hand_size:
-		print(
-			"[REJECTED] Player ",
-			player_index + 1,
-			" has reached maximum hand size"
-		)
+		print("[REJECTED] Maximum hand size reached")
 		return false
 
 	hands[player_index].append(ability)
@@ -107,8 +109,6 @@ func _on_turn_started(
 	_player_index: int,
 	turn_number: int
 ) -> void:
-	# Temporary testing behaviour:
-	# Refill both hands at the start of every turn.
 	_reset_test_hands()
 
 	print(
@@ -161,17 +161,13 @@ func has_playable_instant(
 		if ability.timing != GolfAbility.Timing.INSTANT:
 			continue
 
-		if (
-			phase == TurnManager.Phase.BALL_IN_MOTION
-			and ability.allow_in_flight
-		):
-			return true
+		if phase == TurnManager.Phase.BALL_IN_MOTION:
+			if ability.allow_in_flight:
+				return true
 
-		if (
-			phase == TurnManager.Phase.POST_SHOT
-			and ability.allow_post_shot
-		):
-			return true
+		if phase == TurnManager.Phase.POST_SHOT:
+			if ability.allow_post_shot:
+				return true
 
 	return false
 
@@ -180,57 +176,95 @@ func try_play_ability(
 	player_index: int,
 	ability_id: String
 ) -> bool:
+	# Only one card can be awaiting a target at a time.
+	if pending_ability != null:
+		print("[REJECTED] Finish targeting first")
+		return false
+
 	if player_index < 0 or player_index >= hands.size():
 		return false
 
-	for card_index in range(hands[player_index].size()):
-		var ability: GolfAbility = hands[player_index][card_index]
+	for card in hands[player_index]:
+		var ability: GolfAbility = card
 
 		if ability.ability_id != ability_id:
 			continue
 
 		if not _is_timing_legal(ability, player_index):
-			print(
-				"[REJECTED] ",
-				ability.ability_name,
-				" cannot be played in the current phase"
-			)
+			print("[REJECTED] Invalid ability timing")
 			return false
 
-		# Instants require an owned, open reaction window.
 		if ability.timing == GolfAbility.Timing.INSTANT:
 			if (
 				not reaction_manager.is_reaction_open
 				or reaction_manager.reaction_player != player_index
 			):
-				print(
-					"[REJECTED] Open your own reaction window first"
-				)
+				print("[REJECTED] Open your reaction window first")
 				return false
 
-		# Consume one copy of the card.
-		hands[player_index].remove_at(card_index)
+		# Do not consume the card yet.
+		pending_ability = ability
+		pending_player = player_index
 
 		print(
-			"[ABILITY] Player ",
-			player_index + 1,
-			" played ",
-			ability.ability_name,
-			" | Cards remaining: ",
-			hands[player_index].size()
+			"[ABILITY] Select a target for ",
+			ability.ability_name
 		)
 
-		if ability.timing == GolfAbility.Timing.INSTANT:
-			reaction_manager.record_card_played(player_index)
-
-		ability_played.emit(player_index, ability.ability_id)
+		targeting_controller.begin_targeting(ability)
 		return true
 
+	print("[REJECTED] Card not found in hand")
+	return false
+
+
+func _on_target_selected(
+	ability_id: String,
+	_target_type: int,
+	target_data: Dictionary
+) -> void:
+	if pending_ability == null:
+		return
+
+	if pending_ability.ability_id != ability_id:
+		return
+
+	var player_index: int = pending_player
+	var ability: GolfAbility = pending_ability
+
+	# Confirm the card is still in the player's hand.
+	var card_index: int = hands[player_index].find(ability)
+
+	if card_index == -1:
+		print("[REJECTED] Pending card no longer available")
+		_clear_pending()
+		return
+
+	# Consume the card only after targeting succeeds.
+	hands[player_index].remove_at(card_index)
+
 	print(
-		"[REJECTED] Player ",
+		"[ABILITY] Player ",
 		player_index + 1,
-		" does not have card: ",
-		ability_id
+		" played ",
+		ability.ability_name,
+		" | Target: ",
+		target_data
 	)
 
-	return false
+	_clear_pending()
+
+	if ability.timing == GolfAbility.Timing.INSTANT:
+		reaction_manager.record_card_played(player_index)
+
+	ability_played.emit(player_index, ability.ability_id)
+
+
+func _on_targeting_cancelled() -> void:
+	print("[ABILITY] Targeting cancelled — card retained")
+	_clear_pending()
+
+
+func _clear_pending() -> void:
+	pending_ability = null
+	pending_player = -1
