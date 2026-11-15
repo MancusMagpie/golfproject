@@ -1,0 +1,174 @@
+# Golf Project — Development Context
+
+## 1. Project Overview
+
+A 16-bit-style, turn-based golf roguelike being developed in Godot 4 using GDScript.
+
+**Long-term goal:** A standalone PC game, potentially released on Steam.
+
+### Core Concept
+
+Two golfers compete across an 18-hole match, sharing the same physical course.
+
+The game combines:
+
+- Pull-back-and-release golf mechanics (similar to Angry Birds).
+- Match-play scoring: winning individual holes matters more than total strokes.
+- Card-based abilities inspired by Magic: The Gathering.
+- Roguelike progression and build synergies inspired by Balatro.
+- Procedurally generated golf courses.
+- Environmental manipulation that affects both players.
+
+Players visit a clubhouse after every three holes to purchase abilities and improve their builds.
+
+### Three Gameplay Pillars
+
+**Golfer:** RPG-style character attributes such as power, accuracy and curve.
+
+**Clubs:** Equipment with different properties, buffs, debuffs, durability and potential breakage.
+
+**Course:** Procedural layouts, materials, hazards, weather and physics modifiers.
+
+### Card System
+
+Abilities have timing restrictions:
+
+- PRE_SHOT — Before taking a shot.
+- POST_SHOT — After a shot finishes.
+- INSTANT — Can be activated during reaction windows, including an opponent's turn.
+
+Card activation does not cost energy. Cards are balanced through purchase price, hand-size limitations, availability and timing restrictions.
+
+Target categories: NONE, BALL, COURSE_AREA, GOLFER, GAME.
+
+GAME abilities can manipulate match rules, scorecards, stroke counts and similar systems.
+
+## 2. Technical Setup
+
+- Engine: Godot 4
+- Language: GDScript
+- Renderer: Compatibility
+- Base viewport: 640 × 360
+- Development approach: Small, independently testable milestones
+- Repository: https://github.com/MancusMagpie/golfproject
+
+### Important Scripts
+
+- `golf_ball.gd` — Ball movement, friction, boundaries and shot signals.
+- `shot_controller.gd` — Pull-back aiming, launching and cancellation.
+- `turn_manager.gd` — Turn ownership, shot phases, stroke counting and turn selection.
+- `reaction_manager.gd` — Reaction pausing and countdowns.
+- `golf_ability.gd` — Data model for abilities.
+- `ability_manager.gd` — Player hands, ability restrictions and card consumption.
+- `targeting_controller.gd` — Ability targeting.
+- `golf_hole.gd` — Golf cup rendering and ball capture.
+- `hud.gd` — Temporary debugging HUD.
+
+The current implementation uses two golfers, each represented by a separate GolfBall instance.
+
+## 3. Implemented Features
+
+### Milestone 0.1 — Shot Sandbox
+- Pull-back-and-release aiming.
+- Variable shot power.
+- Friction-based ball movement.
+- Shot start and finish signals.
+
+### Milestone 0.2 — Two-Player Turns
+- Two golfers.
+- Turn management.
+- Right-click shot cancellation.
+- Configurable post-shot countdown (currently 5 seconds).
+- Ball boundaries.
+
+### Milestone 0.3 — Reaction Windows
+- Pause and resume ball movement.
+- Configurable reaction countdown (currently 30 seconds).
+- Instants can be activated during reaction windows.
+- Reaction closes automatically when an instant is played.
+- Players can reopen a reaction if they have another playable instant.
+- Empty reactions are tracked for future penalties.
+
+### Milestone 0.4 — Abilities
+- Data-driven ability resource class.
+- Configurable maximum hand size (currently 5).
+- Cards consumed when successfully played.
+- Placeholder abilities: Freeze Green, Repair Club, Sudden Gust.
+- No energy system.
+
+### Milestone 0.5 — Targeting
+- Ball targeting.
+- Course-area targeting.
+- Targeting cancellation.
+- Card consumption only after successful target selection.
+- Shot controls disabled during ability targeting.
+
+### Milestone 0.6 — Golf Hole (In Progress)
+- Reusable GolfHole scene.
+- Cup rendering.
+- Ball capture at sufficiently low speed.
+- Preventing completed golfers from shooting again.
+- Stroke counting.
+- Both golfers take tee shots before distance-based turn order begins.
+- Configurable closest/farthest-to-cup turn priority.
+- Hole winner or halve determined once both golfers finish.
+
+## 4. Current Prototype Rules
+
+- One turn equals one shot.
+- Two golfers share the course.
+- After both tee shots, the golfer closest to the cup currently plays next (configurable).
+- Players cannot shoot again once their ball is sunk.
+- A shot advances through PRE_SHOT, BALL_IN_MOTION and POST_SHOT.
+- Post-shot phase automatically ends after 5 seconds.
+- Reaction windows last a maximum of 30 seconds.
+- Abilities are currently placeholders and do not affect gameplay physics.
+- Test hands automatically refill every turn. This is temporary.
+
+## 5. Outstanding Design Decisions
+
+- Allowing certain instant cards to activate directly without opening a reaction pause.
+- Penalties for repeatedly opening empty reaction windows.
+- Whether turn order should ultimately prioritise closest or farthest golfer.
+- Detailed golfer attributes and club properties.
+- Ability persistence, purchasing and clubhouse economy.
+- Procedural course generation.
+- Match-play scoring modifiers and strategic concessions.
+- Ball flight, loft, gravity and terrain effects.
+- Multiplayer implementation.
+
+## 6. Next Development Priorities
+
+1. Improve the debug HUD to show both golfers' stroke counts and hole completion.
+2. Implement the transition between holes.
+3. Build an 18-hole match scorecard with wins, losses and halves.
+4. Implement early match completion when a lead becomes mathematically unbeatable.
+5. Support a 19th-hole tiebreaker.
+6. Begin implementing course layout data and procedural generation.
+
+## 7. Development Collaboration Preferences
+
+The developer is a QA engineer with a games design degree and good programming knowledge, but is new to Godot.
+
+When providing assistance:
+
+- Explain Godot-specific concepts and editor navigation clearly.
+- Specify node type, name, parent and script path.
+- Provide **complete replacement scripts** rather than fragmented edits.
+- Work on **one script or small implementation step at a time**.
+- Wait for confirmation before moving to the next step.
+- Include concise acceptance tests.
+- Keep architecture modular and suitable for future multiplayer.
+- Avoid introducing mechanics not agreed upon in the game design.
+
+## 8. Resuming Development
+
+Before continuing:
+
+1. Read this document.
+2. Inspect the latest GitHub repository files to verify the current implementation.
+3. Do not assume the repository matches previous code examples without checking.
+4. Identify the next incomplete milestone.
+5. Continue in small, testable increments.
+
+**Current stopping point:** The two-player prototype successfully detects holed balls, tracks strokes, prevents finished golfers from shooting, and selects subsequent golfers based on distance from the cup. The next planned task is improving the HUD to display stroke counts and hole status.
