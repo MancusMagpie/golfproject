@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3 uid="uid://cuej4ce6cq4ml"]
+
+[ext_resource type="Script" uid="uid://ci13ud4qmjnoj" path="res://scripts/golf_hole.gd" id="1_q35ls"]
+
+[node name="GolfHole" type="Node2D"]
+script = ExtResource("1_q35ls")
+cup_color = Color(0.0843329, 0.155865, 0.109377, 1)
+flag_color = Color(1, 0.395606, 0.552544, 1)
